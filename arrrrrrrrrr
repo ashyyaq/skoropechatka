@@ -1,0 +1,153 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Threading;
+using Newtonsoft.Json;
+
+public class UserRecord
+{
+    public string Name { get; set; }
+    public int CharactersPerMinute { get; set; }
+    public int CharactersPerSecond { get; set; }
+}
+
+public static class Leaderboard
+{
+    private const string LeaderboardFilePath = "leaderboard.json";
+    private static List<UserRecord> leaderboard;
+
+    static Leaderboard()
+    {
+        LoadLeaderboard();
+    }
+
+    private static void LoadLeaderboard()
+    {
+        if (File.Exists(LeaderboardFilePath))
+        {
+            string json = File.ReadAllText(LeaderboardFilePath);
+            leaderboard = JsonConvert.DeserializeObject<List<UserRecord>>(json);
+        }
+        else
+        {
+            leaderboard = new List<UserRecord>();
+        }
+    }
+
+    private static void SaveLeaderboard()
+    {
+        string json = JsonConvert.SerializeObject(leaderboard);
+        File.WriteAllText(LeaderboardFilePath, json);
+    }
+
+    public static void AddRecord(UserRecord record)
+    {
+        leaderboard.Add(record);
+        SaveLeaderboard();
+    }
+
+    public static List<UserRecord> GetLeaderboard()
+    {
+        return leaderboard;
+    }
+}
+
+public class TypingTest
+{
+    private const int TestDuration = 60; 
+    private Stopwatch stopwatch;
+    private Thread timerThread;
+    private bool testCompleted;
+    private string userInput;
+
+    public void StartTest()
+    {
+        Console.Write("Введите ваше имя: ");
+        string name = Console.ReadLine();
+
+        stopwatch = new Stopwatch();
+        timerThread = new Thread(TimerThreadFunction);
+
+        userInput = string.Empty;
+        testCompleted = false;
+
+        timerThread.Start();
+        stopwatch.Start();
+
+        Console.WriteLine("Начинаем время...");
+        Console.WriteLine("Напечатайте следующий текст:");
+
+        string textToType = "Это тест на скоропечатание. Пройдите его как можно быстрее!";
+        Console.WriteLine(textToType);
+
+        while (!testCompleted)
+        {
+            ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+            if (keyInfo.Key == ConsoleKey.Enter)
+            {
+                testCompleted = true;
+            }
+            else
+            {
+                userInput += keyInfo.KeyChar;
+
+                Console.Write(keyInfo.KeyChar);
+            }
+        }
+
+        stopwatch.Stop();
+        timerThread.Join();
+
+        int charactersTyped = userInput.Length;
+        double minutes = stopwatch.Elapsed.TotalMinutes;
+        double seconds = stopwatch.Elapsed.TotalSeconds;
+
+        int charactersPerMinute = (int)(charactersTyped / minutes);
+        int charactersPerSecond = (int)(charactersTyped / seconds);
+
+        UserRecord record = new UserRecord
+        {
+            Name = name,
+            CharactersPerMinute = charactersPerMinute,
+            CharactersPerSecond = charactersPerSecond
+        };
+
+        Leaderboard.AddRecord(record);
+
+        Console.WriteLine();
+        Console.WriteLine("Ваш результат сохранен.");
+        Console.WriteLine("Таблица рекордов:");
+        Console.WriteLine();
+
+        var leaderboard = Leaderboard.GetLeaderboard();
+        foreach (var user in leaderboard)
+        {
+            Console.WriteLine($"Имя: {user.Name}, Символов в Минуту: {user.CharactersPerMinute}, Символов в Секунду: {user.CharactersPerSecond}");
+        }
+    }
+
+    private void TimerThreadFunction()
+    {
+        Thread.Sleep(TestDuration * 1000);
+        testCompleted = true;
+    }
+}
+
+public static class Program
+{
+    public static void Main()
+    {
+        bool exit = false;
+        while (!exit)
+        {
+            TypingTest typingTest = new TypingTest();
+            typingTest.StartTest();
+
+            Console.WriteLine();
+            Console.WriteLine("Хотите пройти тест еще раз? (Y/N)");
+            string answer = Console.ReadLine();
+            exit = (answer?.ToUpper() != "Y");
+        }
+    }
+}
